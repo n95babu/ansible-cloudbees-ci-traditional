@@ -1,0 +1,146 @@
+---
+- name: Install base software on all
+  hosts: all
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: update hosts
+      lineinfile:
+        path: "/etc/hosts"
+        regexp: ".*\t{{ hostvars[item]['ansible_hostname']}}\t{{ hostvars[item]['ansible_hostname']}}"
+        line: "{{ hostvars[item]['ansible_ssh_host'] }}\t{{ hostvars[item]['ansible_hostname']}}\t{{ hostvars[item]['ansible_hostname']}}"
+        state: present
+        backup: yes
+      with_items: "{{ ansible_play_batch }}"       
+    - name: AdoptOpenJDK yum repository
+      yum_repository:
+        name: AdoptOpenJDK
+        description: AdoptOpenJDK
+        baseurl: http://adoptopenjdk.jfrog.io/adoptopenjdk/rpm/centos/$releasever/$basearch
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public
+    - name: Endpoint yum repository
+      yum_repository:
+        name: endpoint
+        description: End Point repository
+        baseurl: https://packages.endpoint.com/rhel/$releasever/os/$basearch/
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://packages.endpoint.com/endpoint-rpmsign-7.pub
+    - name: remove any installed git
+      yum:
+        name: git
+        state: absent
+    - name: Install fontconfig, AdoptOpenJDK and git
+      yum:
+        name:
+          - fontconfig
+          - adoptopenjdk-8-hotspot
+          - git
+        state: latest
+
+- name: Operations Center installation
+  hosts: operations_center
+  become: yes
+  tasks:
+    - name: cloudbees-core-oc yum repository
+      yum_repository:
+        name: cloudbees-core-oc
+        description: Operations Center
+        baseurl: https://downloads.cloudbees.com/cloudbees-core/traditional/operations-center/rolling/rpm
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://downloads.cloudbees.com/cloudbees-core/traditional/operations-center/rolling/rpm/cloudbees.com.key
+    - name: Install Operations Center
+      yum:
+        name:
+          - cloudbees-core-oc
+        state: latest
+    - name: Create directories for Operations Center
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: cloudbees-core-oc
+        group: cloudbees-core-oc
+        recurse: yes
+      with_items:
+        - '/var/cache/cloudbees-core-oc/tmp'
+        - '/var/cache/cloudbees-core-oc/heapdumps'
+    - name: Update JENKINS_JAVA_OPTIONS
+      lineinfile:
+        path: "/etc/sysconfig/cloudbees-core-oc"
+        regexp: ".*-Djava.awt.headless=true.*"
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-oc/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true"'
+        state: present
+    - name: Update JENKINS_ARGS
+      lineinfile:
+        path: "/etc/sysconfig/cloudbees-core-oc"
+        regexp: ".*JENKINS_ARGS=.*"
+        line: 'JENKINS_ARGS="--pluginroot=/var/cache/cloudbees-core-oc/plugins"'
+        state: present
+    - name: Create limits file
+      copy:
+        dest: "/etc/security/limits.d/30-cloudbees.conf"
+        content: |
+          cloudbees-core-oc soft core unlimited
+          cloudbees-core-oc hard core unlimited
+          cloudbees-core-oc soft fsize unlimited
+          cloudbees-core-oc hard fsize unlimited
+          cloudbees-core-oc soft nofile 4096
+          cloudbees-core-oc hard nofile 8192
+          cloudbees-core-oc soft nproc 30654
+          cloudbees-core-oc hard nproc 30654
+  
+- name: Client Master installation
+  hosts: client_masters
+  become: yes
+  tasks:
+    - name: cloudbees-core-cm yum repository
+      yum_repository:
+        name: cloudbees-core-cm
+        description: Client Master
+        baseurl: https://downloads.cloudbees.com/cloudbees-core/traditional/client-master/rolling/rpm
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://downloads.cloudbees.com/cloudbees-core/traditional/client-master/rolling/rpm/cloudbees.com.key
+    - name: Install Client Master
+      yum:
+        name:
+          - cloudbees-core-cm
+        state: latest
+    - name: Create directories for Client Master
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: cloudbees-core-cm
+        group: cloudbees-core-cm
+        recurse: yes
+      with_items:
+        - '/var/cache/cloudbees-core-cm/tmp'
+        - '/var/cache/cloudbees-core-cm/heapdumps'
+    - name: Update JENKINS_JAVA_OPTIONS
+      lineinfile:
+        path: "/etc/sysconfig/cloudbees-core-cm"
+        regexp: ".*-Djava.awt.headless=true.*"
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-cm/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true"'
+        state: present
+    - name: Update JENKINS_ARGS
+      lineinfile:
+        path: "/etc/sysconfig/cloudbees-core-cm"
+        regexp: ".*JENKINS_ARGS=.*"
+        line: 'JENKINS_ARGS="--pluginroot=/var/cache/cloudbees-core-cm/plugins"'
+        state: present
+    - name: Create limits file
+      copy:
+        dest: "/etc/security/limits.d/30-cloudbees.conf"
+        content: |
+          cloudbees-core-cm soft core unlimited
+          cloudbees-core-cm hard core unlimited
+          cloudbees-core-cm soft fsize unlimited
+          cloudbees-core-cm hard fsize unlimited
+          cloudbees-core-cm soft nofile 4096
+          cloudbees-core-cm hard nofile 8192
+          cloudbees-core-cm soft nproc 30654
+          cloudbees-core-cm hard nproc 30654
+  
