@@ -176,12 +176,13 @@
         enabled: yes
         gpgcheck: yes
         gpgkey: https://download.docker.com/linux/centos/gpg
-    - name: Install Docker
+    - name: Install Docker and unzip
       yum:
         name: 
           - docker-ce
           - docker-ce-cli
           - containerd.io
+          - unzip
         state: latest
     - name: add docker group
       group:
@@ -196,3 +197,59 @@
       systemd:
         name: docker
         state: started
+    - name: create Maven directory
+      file: 
+        path: "/opt/tools/maven"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        recurse: yes
+    - name: download Maven 3.6.3
+      unarchive:
+        src: https://mirrors.sonic.net/apache/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz
+        dest: /opt/tools/maven
+        remote_src: yes
+    - name: create Maven latest symlink
+      file: 
+        src: /opt/tools/maven/apache-maven-3.6.3
+        dest: /opt/tools/maven/latest
+        owner: vagrant
+        group: vagrant
+        state: link
+    - name: setup Maven profile
+      copy:
+        dest: /etc/profile.d/maven.sh
+        content: |
+          PATH=/opt/tools/maven/latest/bin:$PATH
+    - name: create Gradle directory
+      file: 
+        path: "/opt/tools/gradle"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        recurse: yes
+    - name: download Gradle 6.6.1
+      unarchive:
+        src: https://services.gradle.org/distributions/gradle-6.6.1-bin.zip
+        dest: /opt/tools/gradle
+        remote_src: yes
+    - name: create Gradle latest symlink
+      file: 
+        src: /opt/tools/gradle/gradle-6.6.1
+        dest: /opt/tools/gradle/latest
+        owner: vagrant
+        group: vagrant
+        state: link
+    - name: setup Gradle profile
+      copy:
+        dest: /etc/profile.d/gradle.sh
+        content: |
+          PATH=/opt/tools/gradle/latest/bin:$PATH
+    - name: set final ownership to /opt/tools
+      file: 
+        path: "/opt/tools"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        recurse: yes
+    
