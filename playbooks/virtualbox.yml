@@ -91,7 +91,11 @@
           cloudbees-core-oc hard nofile 8192
           cloudbees-core-oc soft nproc 30654
           cloudbees-core-oc hard nproc 30654
-  
+    - name: start cloudbees-core-oc service
+      systemd:
+        name: cloudbees-core-oc
+        state: started
+      
 - name: Client Master installation
   hosts: client_masters
   become: yes
@@ -143,4 +147,52 @@
           cloudbees-core-cm hard nofile 8192
           cloudbees-core-cm soft nproc 30654
           cloudbees-core-cm hard nproc 30654
-  
+    - name: start cloudbees-core-cm service
+      systemd:
+        name: cloudbees-core-cm
+        state: started
+      
+- name: Agent installation
+  hosts: agents
+  become: yes
+  tasks:
+    - name: remove any installed docker
+      yum:
+        name:
+          - docker
+          - docker-client
+          - docker-client-latest
+          - docker-common
+          - docker-latest
+          - docker-latest-logrotate
+          - docker-logrotate
+          - docker-engine
+        state: absent
+    - name: docker-ce-stable yum repository
+      yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable - $basearch
+        baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+    - name: Install Docker
+      yum:
+        name: 
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: latest
+    - name: add docker group
+      group:
+        name: docker
+        state: present
+    - name: add $USER to docker group
+      user: 
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+    - name: start Docker service
+      systemd:
+        name: docker
+        state: started
