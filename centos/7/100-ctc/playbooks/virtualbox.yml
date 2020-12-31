@@ -71,7 +71,7 @@
       lineinfile:
         path: "/etc/sysconfig/cloudbees-core-oc"
         regexp: ".*-Djava.awt.headless=true.*"
-        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-oc/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York -Duser.timezone=America/New_York"'
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-oc/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true"'
         state: present
     - name: Update JENKINS_ARGS
       lineinfile:
@@ -127,7 +127,7 @@
       lineinfile:
         path: "/etc/sysconfig/cloudbees-core-cm"
         regexp: ".*-Djava.awt.headless=true.*"
-        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-cm/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York -Duser.timezone=America/New_York"'
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-cm/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true"'
         state: present
     - name: Update JENKINS_ARGS
       lineinfile:
@@ -151,105 +151,3 @@
       systemd:
         name: cloudbees-core-cm
         state: started
-      
-- name: Agent installation
-  hosts: agents
-  become: yes
-  tasks:
-    - name: remove any installed docker
-      yum:
-        name:
-          - docker
-          - docker-client
-          - docker-client-latest
-          - docker-common
-          - docker-latest
-          - docker-latest-logrotate
-          - docker-logrotate
-          - docker-engine
-        state: absent
-    - name: docker-ce-stable yum repository
-      yum_repository:
-        name: docker-ce-stable
-        description: Docker CE Stable - $basearch
-        baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
-        enabled: yes
-        gpgcheck: yes
-        gpgkey: https://download.docker.com/linux/centos/gpg
-    - name: Install Docker and unzip
-      yum:
-        name: 
-          - docker-ce
-          - docker-ce-cli
-          - containerd.io
-          - unzip
-        state: latest
-    - name: add docker group
-      group:
-        name: docker
-        state: present
-    - name: add $USER to docker group
-      user: 
-        name: "{{ ansible_user }}"
-        groups: docker
-        append: yes
-    - name: start Docker service
-      systemd:
-        name: docker
-        state: started
-    - name: create Maven directory
-      file: 
-        path: "/opt/tools/maven"
-        state: directory
-        owner: vagrant
-        group: vagrant
-        recurse: yes
-    - name: download Maven 3.6.3
-      unarchive:
-        src: https://mirrors.sonic.net/apache/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz
-        dest: /opt/tools/maven
-        remote_src: yes
-    - name: create Maven latest symlink
-      file: 
-        src: /opt/tools/maven/apache-maven-3.6.3
-        dest: /opt/tools/maven/latest
-        owner: vagrant
-        group: vagrant
-        state: link
-    - name: setup Maven profile
-      copy:
-        dest: /etc/profile.d/maven.sh
-        content: |
-          PATH=/opt/tools/maven/latest/bin:$PATH
-    - name: create Gradle directory
-      file: 
-        path: "/opt/tools/gradle"
-        state: directory
-        owner: vagrant
-        group: vagrant
-        recurse: yes
-    - name: download Gradle 6.7.1
-      unarchive:
-        src: https://services.gradle.org/distributions/gradle-6.7.1-bin.zip
-        dest: /opt/tools/gradle
-        remote_src: yes
-    - name: create Gradle latest symlink
-      file: 
-        src: /opt/tools/gradle/gradle-6.7.1
-        dest: /opt/tools/gradle/latest
-        owner: vagrant
-        group: vagrant
-        state: link
-    - name: setup Gradle profile
-      copy:
-        dest: /etc/profile.d/gradle.sh
-        content: |
-          PATH=/opt/tools/gradle/latest/bin:$PATH
-    - name: set final ownership to /opt/tools
-      file: 
-        path: "/opt/tools"
-        state: directory
-        owner: vagrant
-        group: vagrant
-        recurse: yes
-    
