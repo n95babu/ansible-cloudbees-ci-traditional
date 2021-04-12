@@ -1,0 +1,147 @@
+---
+- name: Install base software on all
+  hosts: all
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: update hosts
+      lineinfile:
+        path: "/etc/hosts"
+        regexp: ".*\t{{ hostvars[item]['ansible_hostname']}}\t{{ hostvars[item]['ansible_hostname']}}"
+        line: "{{ hostvars[item]['ansible_ssh_host'] }}\t{{ hostvars[item]['ansible_hostname']}}\t{{ hostvars[item]['ansible_hostname']}}"
+        state: present
+        backup: yes
+      with_items: "{{ ansible_play_batch }}"       
+    - name: AdoptOpenJDK yum repository
+      yum_repository:
+        name: AdoptOpenJDK
+        description: AdoptOpenJDK
+        baseurl: http://adoptopenjdk.jfrog.io/adoptopenjdk/rpm/centos/$releasever/$basearch
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public
+    - name: Endpoint yum repository
+      yum_repository:
+        name: endpoint
+        description: End Point repository
+        baseurl: https://packages.endpoint.com/rhel/$releasever/os/$basearch/
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://packages.endpoint.com/endpoint-rpmsign-7.pub
+    - name: remove any installed git
+      yum:
+        name: git
+        state: absent
+    - name: Install fontconfig, AdoptOpenJDK and git
+      yum:
+        name:
+          - fontconfig
+          - adoptopenjdk-8-hotspot
+          - git
+        state: latest
+      
+- name: Client Master installation
+  hosts: client_masters
+  become: yes
+  tasks:
+    - name: cloudbees-core-cm yum repository
+      yum_repository:
+        name: cloudbees-core-cm
+        description: Client Master
+        baseurl: https://downloads.cloudbees.com/cloudbees-core/traditional/client-master/rolling/rpm
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://downloads.cloudbees.com/cloudbees-core/traditional/client-master/rolling/rpm/cloudbees.com.key
+    - name: Install Client Master
+      yum:
+        name:
+          - cloudbees-core-cm
+        state: latest
+    - name: Create directories for Client Master
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: cloudbees-core-cm
+        group: cloudbees-core-cm
+        recurse: yes
+      with_items:
+        - '/var/cache/cloudbees-core-cm/tmp'
+        - '/var/cache/cloudbees-core-cm/heapdumps'
+    - name: Update JENKINS_JAVA_OPTIONS
+      lineinfile:
+        path: "/etc/sysconfig/cloudbees-core-cm"
+        regexp: ".*-Djava.awt.headless=true.*"
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/cloudbees-core-cm/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York -Duser.timezone=America/New_York"'
+        state: present
+    - name: Update JENKINS_ARGS
+      lineinfile:
+        path: "/etc/sysconfig/cloudbees-core-cm"
+        regexp: ".*JENKINS_ARGS=.*"
+        line: 'JENKINS_ARGS="--pluginroot=/var/cache/cloudbees-core-cm/plugins"'
+        state: present
+    - name: Create limits file
+      copy:
+        dest: "/etc/security/limits.d/30-cloudbees.conf"
+        content: |
+          cloudbees-core-cm soft core unlimited
+          cloudbees-core-cm hard core unlimited
+          cloudbees-core-cm soft fsize unlimited
+          cloudbees-core-cm hard fsize unlimited
+          cloudbees-core-cm soft nofile 4096
+          cloudbees-core-cm hard nofile 8192
+          cloudbees-core-cm soft nproc 30654
+          cloudbees-core-cm hard nproc 30654
+    - name: start cloudbees-core-cm service
+      systemd:
+        name: cloudbees-core-cm
+        state: started
+      
+- name: Agent installation
+  hosts: agents
+  become: yes
+  tasks:
+
+- name: Tunnel installation
+  hosts: tunnels
+  become: yes
+  tasks:
+    - name: enable and start firewalld service
+      systemd:
+        name: firewalld
+        state: started
+        enabled: yes
+    - name: permit traffic in default zone on port 22/tcp
+      ansible.posix.firewalld:
+        port: 22/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+    - name: install unzip
+      yum:
+        name:
+          - unzip
+        state: latest    
+    - name: create Ngrok directory
+      file: 
+        path: "/opt/tools/ngrok/stable/bin"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        recurse: yes
+    - name: download Ngrok stable
+      unarchive:
+        src: https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+        dest: /opt/tools/ngrok/stable/bin
+        remote_src: yes
+    - name: setup Ngrok profile
+      copy:
+        dest: /etc/profile.d/ngrok.sh
+        content: |
+          PATH=/opt/tools/ngrok/stable/bin:$PATH
+    - name: set final ownership to /opt/tools
+      file: 
+        path: "/opt/tools"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        recurse: yes
