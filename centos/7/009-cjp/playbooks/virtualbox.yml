@@ -1,0 +1,98 @@
+---
+- name: Install base software on all
+  hosts: all
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: update hosts
+      lineinfile:
+        path: "/etc/hosts"
+        regexp: ".*\t{{ hostvars[item]['ansible_hostname']}}\t{{ hostvars[item]['ansible_hostname']}}"
+        line: "{{ hostvars[item]['ansible_ssh_host'] }}\t{{ hostvars[item]['ansible_hostname']}}\t{{ hostvars[item]['ansible_hostname']}}"
+        state: present
+        backup: yes
+      with_items: "{{ ansible_play_batch }}"       
+    - name: AdoptOpenJDK yum repository
+      yum_repository:
+        name: AdoptOpenJDK
+        description: AdoptOpenJDK
+        baseurl: http://adoptopenjdk.jfrog.io/adoptopenjdk/rpm/centos/$releasever/$basearch
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public
+    - name: Endpoint yum repository
+      yum_repository:
+        name: endpoint
+        description: End Point repository
+        baseurl: https://packages.endpoint.com/rhel/$releasever/os/$basearch/
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://packages.endpoint.com/endpoint-rpmsign-7.pub
+    - name: remove any installed git
+      yum:
+        name: git
+        state: absent
+    - name: Install fontconfig, AdoptOpenJDK and git
+      yum:
+        name:
+          - fontconfig
+          - adoptopenjdk-8-hotspot
+          - git
+        state: latest
+
+- name: Client Master installation
+  hosts: client_masters
+  become: yes
+  tasks:
+    - name: jenkins yum repository
+      yum_repository:
+        name: jenkins
+        description: Client Master
+        baseurl: https://downloads.cloudbees.com/jenkins-enterprise/rolling/rpm
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://downloads.cloudbees.com/jenkins-enterprise/rolling/rpm/cloudbees.com.key
+    - name: Install Client Master
+      yum:
+        name:
+          - jenkins
+        state: latest
+    - name: Create directories for Client Master
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: jenkins
+        group: jenkins
+        recurse: yes
+      with_items:
+        - '/var/cache/jenkins/tmp'
+        - '/var/cache/jenkins/heapdumps'
+    - name: Update JENKINS_JAVA_OPTIONS
+      lineinfile:
+        path: "/etc/sysconfig/jenkins"
+        regexp: ".*-Djava.awt.headless=true.*"
+        line: 'JENKINS_JAVA_OPTIONS="-Djava.awt.headless=true -Dcom.cloudbees.jenkins.ha=false -Djava.io.tmpdir=/var/cache/jenkins/tmp/ -Dcb.BeekeeperProp.noFullUpgrade=true -Dorg.apache.commons.jelly.tags.fmt.timeZone=America/New_York -Duser.timezone=America/New_York"'
+        state: present
+    - name: Update JENKINS_ARGS
+      lineinfile:
+        path: "/etc/sysconfig/jenkins"
+        regexp: ".*JENKINS_ARGS=.*"
+        line: 'JENKINS_ARGS="--pluginroot=/var/cache/jenkins/plugins"'
+        state: present
+    - name: Create limits file
+      copy:
+        dest: "/etc/security/limits.d/30-cloudbees.conf"
+        content: |
+          jenkins soft core unlimited
+          jenkins hard core unlimited
+          jenkins soft fsize unlimited
+          jenkins hard fsize unlimited
+          jenkins soft nofile 4096
+          jenkins hard nofile 8192
+          jenkins soft nproc 30654
+          jenkins hard nproc 30654
+    - name: start jenkins service
+      systemd:
+        name: jenkins
+        state: started
+      
