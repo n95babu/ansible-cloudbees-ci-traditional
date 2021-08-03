@@ -10,19 +10,19 @@ Vagrant.configure(2) do |config|
     end
   end
 
-  config.vm.define "cm1" do |cm1|
-    cm1.vm.network "private_network", ip: "192.168.32.13"
-    cm1.vm.hostname = "cm1"
-    cm1.vm.provider "cm1" do |vb|
+  config.vm.define "cc1" do |cc1|
+    cc1.vm.network "private_network", ip: "192.168.32.13"
+    cc1.vm.hostname = "cc1"
+    cc1.vm.provider "cc1" do |vb|
       vb.cpus = 1
       vb.memory = 1024
     end
   end
 
-  config.vm.define "cm2" do |cm2|
-    cm2.vm.network "private_network", ip: "192.168.32.15"
-    cm2.vm.hostname = "cm2"
-    cm2.vm.provider "cm2" do |vb|
+  config.vm.define "cc2" do |cc2|
+    cc2.vm.network "private_network", ip: "192.168.32.15"
+    cc2.vm.hostname = "cc2"
+    cc2.vm.provider "cc2" do |vb|
       vb.cpus = 1
       vb.memory = 1024
     end
